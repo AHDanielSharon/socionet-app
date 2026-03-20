@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "blurhash": "^2.0.5",
     "cloudinary": "^2.0.1",
     "compression": "^1.7.4",
     "cookie-parser": "^1.4.6",
@@ -24,6 +25,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "mime-types": "^2.1.35",
+    "minio": "^8.0.7",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
@@ -31,6 +33,7 @@
     "openai": "^4.28.0",
     "pg": "^8.11.3",
     "redis": "^4.6.12",
+    "sharp": "^0.34.5",
     "tsc-alias": "^1.8.16",
     "uuid": "^9.0.1",
     "winston": "^3.11.0",

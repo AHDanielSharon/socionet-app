@@ -8,12 +8,15 @@
 
     "baseUrl": "./src",
     "paths": {
-      "@config/*": ["config/*"],
-      "@lib/*": ["lib/*"],
-      "@routes/*": ["routes/*"],
-      "@utils/*": ["utils/*"],
-      "@middleware/*": ["middleware/*"]
-    },
+  "@config/*": ["config/*"],
+  "@lib/*": ["lib/*"],
+  "@routes/*": ["routes/*"],
+  "@utils/*": ["utils/*"],
+  "@middleware/*": ["middleware/*"],
+  "@services/*": ["services/*"],
+  "@validators/*": ["validators/*"],
+  "@jobs/*": ["jobs/*"]
+}
 
     "esModuleInterop": true,
     "resolveJsonModule": true,
