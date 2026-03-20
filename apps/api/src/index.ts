@@ -8,7 +8,7 @@ import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import { createServer } from 'http';
 
-// ✅ CORRECT PATHS (no ../)
+// imports
 import { config } from './config/index';
 import { db } from './lib/db';
 import { initRedis } from './lib/redis';
@@ -18,7 +18,7 @@ import { logger, httpLogStream } from './utils/logger';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { rateLimiter } from './middleware/rateLimiter';
 
-// Routes
+// routes
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import postRoutes from './routes/posts';
@@ -45,19 +45,34 @@ const app = express();
 const httpServer = createServer(app);
 
 async function bootstrap() {
+  // ✅ Redis (SAFE)
   try {
-  await initRedis();
-} catch (err) {
-  console.log("⚠️ Redis not available, continuing without it");
-}
-  await initStorage();
-  initEmail();
+    await initRedis();
+  } catch (err) {
+    console.log("⚠️ Redis not available, continuing without it");
+  }
 
+  // ✅ Storage (SAFE)
+  try {
+    await initStorage();
+  } catch (err) {
+    console.log("⚠️ Storage not available, continuing without it");
+  }
+
+  // ✅ Email (SAFE)
+  try {
+    initEmail();
+  } catch (err) {
+    console.log("⚠️ Email not available, continuing without it");
+  }
+
+  // security
   app.use(helmet({
     contentSecurityPolicy: false,
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }));
 
+  // cors
   app.use(cors({
     origin: true,
     credentials: true,
@@ -68,6 +83,7 @@ async function bootstrap() {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
 
+  // logging
   if (!config.app.isProd) {
     app.use(morgan('dev'));
   } else {
@@ -76,13 +92,20 @@ async function bootstrap() {
 
   app.use('/api/', rateLimiter);
 
-  app.get('/health', async (_req, res) => {
+  // ✅ ROOT ROUTE (IMPORTANT)
+  app.get('/', (_req, res) => {
+    res.send('SOCIONET API RUNNING 🚀');
+  });
+
+  // ✅ HEALTH ROUTE
+  app.get('/health', (_req, res) => {
     res.json({
       status: 'ok',
       time: new Date()
     });
   });
 
+  // routes
   const v1 = '/api/v1';
 
   app.use(`${v1}/auth`, authRoutes);
@@ -107,11 +130,15 @@ async function bootstrap() {
   app.use(`${v1}/settings`, settingsRoutes);
   app.use(`${v1}/reports`, reportRoutes);
 
+  // error handling
   app.use(notFoundHandler);
   app.use(errorHandler);
 
-  httpServer.listen(process.env.PORT || 10000, () => {
-    console.log(`🚀 Server running`);
+  // ✅ CORRECT PORT FOR RENDER
+  const PORT = process.env.PORT || 10000;
+
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server running on port ${PORT}`);
   });
 }
 
