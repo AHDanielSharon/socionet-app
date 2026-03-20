@@ -1,0 +1,27 @@
+{
+  "name": "socionet",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SOCIONET — Next-generation decentralized social super-app",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "concurrently -n API,REALTIME,WEB -c cyan,yellow,green \"yarn workspace @socionet/api dev\" \"yarn workspace @socionet/realtime dev\" \"yarn workspace @socionet/web dev\"",
+    "build": "yarn workspace @socionet/api build && yarn workspace @socionet/realtime build && yarn workspace @socionet/web build",
+    "lint": "yarn workspaces run lint",
+    "test": "yarn workspaces run test",
+    "db:migrate": "yarn workspace @socionet/database migrate",
+    "db:seed": "yarn workspace @socionet/database seed",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "docker:logs": "docker-compose logs -f",
+    "setup": "cp .env.example .env && echo '✅ .env created — fill in your values'"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3",
+    "prettier": "^3.2.2",
+    "eslint": "^8.56.0"
+  },
+  "engines": { "node": ">=20.0.0", "yarn": ">=1.22.0" }
+}

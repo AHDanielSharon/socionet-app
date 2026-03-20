@@ -1,0 +1,11 @@
+{
+  "dashboard": {
+    "title": "SOCIONET Metrics",
+    "panels": [
+      { "title": "Active Users", "type": "stat" },
+      { "title": "API Requests/min", "type": "graph" },
+      { "title": "DB Connections", "type": "gauge" },
+      { "title": "Message Rate", "type": "graph" }
+    ]
+  }
+}

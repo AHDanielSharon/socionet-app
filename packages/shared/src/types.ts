@@ -1,0 +1,12 @@
+export type Visibility = 'public'|'followers'|'close_friends'|'only_me';
+export type PostType = 'text'|'image'|'video'|'carousel'|'reel'|'story'|'live'|'podcast';
+export type RelationshipType = 'follow'|'blocked'|'muted'|'close_friend';
+export type NotificationType = 'like'|'comment'|'reply'|'follow'|'follow_request'|'follow_accepted'|'mention'|'dm'|'live_started'|'story_reaction'|'tip_received'|'achievement'|'system';
+export type MediaType = 'image'|'video'|'audio'|'document'|'gif';
+export type MessageType = 'text'|'image'|'video'|'audio'|'file'|'location'|'sticker'|'gif'|'system'|'voice_note';
+export type ConversationType = 'direct'|'group'|'channel'|'broadcast';
+export type CallType = 'audio'|'video'|'screen_share';
+export type UserStatus = 'active'|'banned'|'suspended'|'deactivated';
+export type LiveStatus = 'idle'|'live'|'ended';
+export type MemberRole = 'member'|'moderator'|'admin'|'owner';
+export type ReactionEmoji = 'like'|'love'|'haha'|'wow'|'sad'|'angry'|'unlike';

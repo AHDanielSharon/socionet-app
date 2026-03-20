@@ -1,0 +1,285 @@
+# SOCIONET — Render.com Deployment Guide
+# Complete step-by-step, start to finish
+
+================================================================
+BEFORE YOU START — Accounts needed (all free)
+================================================================
+
+1. GitHub:      https://github.com  (to host your code)
+2. Render:      https://render.com  (to deploy)
+3. Cloudinary:  https://cloudinary.com  (for image/video uploads, 25GB free)
+4. Gmail:       Any Gmail account (for email notifications)
+
+================================================================
+PHASE 1 — PUSH CODE TO GITHUB (10 min)
+================================================================
+
+On your computer:
+
+  cd socionet/
+  git init
+  git add .
+  git commit -m "Initial SOCIONET commit"
+
+  # Create a new repo on github.com/new (name: socionet, private is fine)
+  # Then:
+  git remote add origin https://github.com/YOURUSERNAME/socionet.git
+  git push -u origin main
+
+================================================================
+PHASE 2 — GET YOUR FREE ACCOUNTS READY (5 min)
+================================================================
+
+── Cloudinary (for file uploads)
+  1. Sign up at cloudinary.com
+  2. Dashboard → copy:
+     - Cloud Name
+     - API Key
+     - API Secret
+  Keep these handy.
+
+── Gmail App Password (for email notifications)
+  1. Go to myaccount.google.com
+  2. Security → 2-Step Verification → App passwords
+  3. Create one called "SOCIONET"
+  4. Copy the 16-character password
+  (Skip this if you don't need emails yet)
+
+================================================================
+PHASE 3 — RENDER SETUP (20 min)
+================================================================
+
+Go to render.com → Sign up with GitHub
+
+──────────────────────────────────────────────────────────────
+STEP 1: Create PostgreSQL Database
+──────────────────────────────────────────────────────────────
+
+  Dashboard → New + → PostgreSQL
+
+  Name:              socionet-db
+  Database:          socionet
+  User:              socionet
+  Region:            Oregon (US West) ← pick closest to you
+  PostgreSQL Version: 16
+  Plan:              Free
+
+  → Click "Create Database"
+  → Wait ~2 min for it to spin up
+  → Click on it → copy "Internal Database URL"
+    looks like: postgresql://socionet:PASSWORD@dpg-xxx/socionet
+
+──────────────────────────────────────────────────────────────
+STEP 2: Create Redis (Key Value)
+──────────────────────────────────────────────────────────────
+
+  Dashboard → New + → Redis  (called "Key Value" on Render)
+
+  Name:   socionet-redis
+  Region: Oregon (same as DB!)
+  Plan:   Free
+
+  → Click "Create Key Value"
+  → Copy the "Internal Redis URL"
+    looks like: redis://red-xxx:6379
+
+──────────────────────────────────────────────────────────────
+STEP 3: Deploy the API (Backend)
+──────────────────────────────────────────────────────────────
+
+  Dashboard → New + → Web Service
+  → Connect your GitHub repo: socionet
+  → Configure:
+
+    Name:          socionet-api
+    Region:        Oregon
+    Branch:        main
+    Root Directory: apps/api
+    Runtime:       Node
+    Build Command: npm install && npm run build
+    Start Command: npm start
+    Plan:          Free
+
+  → Environment Variables (click "Add Environment Variable" for each):
+
+    NODE_ENV              = production
+    PORT                  = 4000
+    DATABASE_URL          = [paste Internal Database URL from Step 1]
+    REDIS_URL             = [paste Internal Redis URL from Step 2]
+    JWT_SECRET            = [generate: open terminal → node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"]
+    JWT_REFRESH_SECRET    = [generate another one the same way]
+    JWT_ACCESS_EXPIRY     = 15m
+    JWT_REFRESH_EXPIRY    = 30d
+    USE_CLOUDINARY        = true
+    CLOUDINARY_CLOUD_NAME = [from Cloudinary dashboard]
+    CLOUDINARY_API_KEY    = [from Cloudinary dashboard]
+    CLOUDINARY_API_SECRET = [from Cloudinary dashboard]
+    SMTP_HOST             = smtp.gmail.com
+    SMTP_PORT             = 587
+    SMTP_USER             = your@gmail.com
+    SMTP_PASS             = [your Gmail App Password]
+    SMTP_FROM             = SOCIONET <your@gmail.com>
+    BCRYPT_ROUNDS         = 12
+
+  → Click "Create Web Service"
+  → Wait for it to deploy (~5 min first time)
+  → Copy your API URL: https://socionet-api.onrender.com
+
+  Now add CORS:
+    CORS_ORIGINS = https://socionet-web.onrender.com,http://localhost:3000
+
+──────────────────────────────────────────────────────────────
+STEP 4: Initialize the Database
+──────────────────────────────────────────────────────────────
+
+  Once the API is deployed, open its Shell tab on Render:
+  
+  API Service → Shell → type:
+    node scripts/init-db.js
+  
+  OR run it from your local machine:
+    DATABASE_URL="postgresql://..." node scripts/init-db.js
+
+  You should see: "SOCIONET database initialized successfully"
+
+──────────────────────────────────────────────────────────────
+STEP 5: Deploy the Realtime Server
+──────────────────────────────────────────────────────────────
+
+  Dashboard → New + → Web Service
+  → Same GitHub repo
+
+    Name:           socionet-realtime
+    Region:         Oregon
+    Root Directory: apps/realtime
+    Build Command:  npm install && npm run build
+    Start Command:  node dist/index.js
+    Plan:           Free
+
+  Environment Variables:
+    NODE_ENV      = production
+    REALTIME_PORT = 10000
+    REDIS_URL     = [same Redis URL as API]
+    JWT_SECRET    = [SAME JWT_SECRET as API — must match!]
+    APP_URL       = https://socionet-web.onrender.com
+
+  → Create Web Service
+  → Copy URL: https://socionet-realtime.onrender.com
+
+──────────────────────────────────────────────────────────────
+STEP 6: Deploy the Web Frontend (Next.js)
+──────────────────────────────────────────────────────────────
+
+  Dashboard → New + → Web Service
+  → Same GitHub repo
+
+    Name:           socionet-web
+    Region:         Oregon
+    Root Directory: apps/web
+    Build Command:  npm install && npm run build
+    Start Command:  npm start
+    Plan:           Free
+
+  Environment Variables:
+    NODE_ENV                          = production
+    NEXT_PUBLIC_API_URL               = https://socionet-api.onrender.com/api/v1
+    NEXT_PUBLIC_REALTIME_URL          = https://socionet-realtime.onrender.com
+    NEXT_PUBLIC_APP_URL               = https://socionet-web.onrender.com
+    NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME = [your Cloudinary cloud name]
+
+  → Create Web Service
+  → Wait ~5 min
+  → Your URL: https://socionet-web.onrender.com  ← THIS IS YOUR LINK!
+
+──────────────────────────────────────────────────────────────
+STEP 7: Deploy the Background Worker (optional but recommended)
+──────────────────────────────────────────────────────────────
+
+  Dashboard → New + → Background Worker
+
+    Name:           socionet-worker
+    Region:         Oregon
+    Root Directory: apps/api
+    Build Command:  npm install && npm run build
+    Start Command:  node dist/worker.js
+    Plan:           Free
+
+  Environment Variables:
+    NODE_ENV     = production
+    DATABASE_URL = [same as API]
+    REDIS_URL    = [same as API]
+
+================================================================
+PHASE 4 — VERIFY EVERYTHING WORKS (5 min)
+================================================================
+
+  1. Visit: https://socionet-web.onrender.com
+  2. You should see the SOCIONET login page
+  3. Click "Create Account"
+  4. Fill in your details → you're User #1!
+  5. Try posting, messaging, exploring
+
+  API health check:
+    https://socionet-api.onrender.com/health
+    Should return: { "status": "ok", ... }
+
+================================================================
+TROUBLESHOOTING
+================================================================
+
+❌ "Application failed to start"
+   → Check Logs tab → look for the error
+   → Most common: missing environment variable
+
+❌ "Cannot connect to database"
+   → Make sure DATABASE_URL is the "Internal" URL (not External)
+   → Both services must be in the same Region
+
+❌ Images not uploading
+   → Check Cloudinary credentials in API env vars
+   → Make sure USE_CLOUDINARY=true
+
+❌ Site loads but shows blank/white page
+   → Check NEXT_PUBLIC_API_URL matches your API service URL exactly
+   → No trailing slash
+
+❌ Real-time features not working (messages, notifications)
+   → Check NEXT_PUBLIC_REALTIME_URL matches realtime service URL
+   → Check JWT_SECRET is IDENTICAL in both API and Realtime services
+
+❌ Service sleeping / slow first load
+   → Free tier services spin down after 15 min inactivity
+   → First request after sleep takes ~30 sec (normal on free tier)
+   → Upgrade to $7/month "Starter" plan for always-on
+
+================================================================
+FREE TIER LIMITS
+================================================================
+
+  PostgreSQL:   1 GB storage, expires after 90 days (create new one)
+  Redis:        25 MB storage (enough for ~10k active sessions)
+  Web Services: 750 hours/month (enough for 3 services running 24/7)
+  Bandwidth:    100 GB/month outbound
+
+  When you hit limits → upgrade individual services to $7/month
+
+================================================================
+CUSTOM DOMAIN (optional, free)
+================================================================
+
+  1. Buy a domain (Namecheap ~$10/year)
+  2. Render → your web service → Settings → Custom Domain
+  3. Add your domain → Render gives you DNS records
+  4. Add those records in your domain registrar
+  5. SSL certificate is automatic (Let's Encrypt)
+
+================================================================
+NEXT STEPS AFTER DEPLOYMENT
+================================================================
+
+  → Share your link!
+  → Register and post as User #1
+  → Invite friends
+  → Monitor usage in Render dashboard
+  → Check logs for any errors
+  → When ready to scale: upgrade to paid plans

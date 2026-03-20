@@ -1,0 +1,248 @@
+version: '3.9'
+
+x-common-env: &common-env
+  NODE_ENV: ${NODE_ENV:-production}
+  DATABASE_URL: postgresql://${POSTGRES_USER:-socionet}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-socionet}
+  REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+  JWT_SECRET: ${JWT_SECRET}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+  MINIO_ENDPOINT: minio
+  MINIO_PORT: 9000
+  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+
+services:
+  # ── PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: socionet_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-socionet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-socionet}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./infrastructure/docker/postgres/extensions.sql:/docker-entrypoint-initdb.d/00_extensions.sql
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-socionet} -d ${POSTGRES_DB:-socionet}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=768MB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c log_min_duration_statement=1000
+
+  # ── Redis
+  redis:
+    image: redis:7-alpine
+    container_name: socionet_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 300
+      --timeout 0
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO (S3-compatible storage)
+  minio:
+    image: minio/minio:latest
+    container_name: socionet_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      MINIO_BROWSER_REDIRECT_URL: http://localhost:9001
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ── MinIO bucket setup
+  minio-setup:
+    image: minio/mc:latest
+    container_name: socionet_minio_setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY};
+      mc mb -p local/socionet-media;
+      mc mb -p local/socionet-avatars;
+      mc mb -p local/socionet-videos;
+      mc mb -p local/socionet-audio;
+      mc anonymous set public local/socionet-media;
+      mc anonymous set public local/socionet-avatars;
+      mc anonymous set public local/socionet-videos;
+      mc anonymous set public local/socionet-audio;
+      echo 'MinIO buckets ready';
+      "
+    restart: "no"
+
+  # ── API Server
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+      target: production
+    container_name: socionet_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      API_PORT: 4000
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      EMAIL_FROM: ${EMAIL_FROM}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:-}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:-}
+      APP_URL: ${APP_URL}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ── Realtime Server (Socket.io)
+  realtime:
+    build:
+      context: ./apps/realtime
+      dockerfile: Dockerfile
+    container_name: socionet_realtime
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      REALTIME_PORT: 4001
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      API_URL: http://api:4000
+      APP_URL: ${APP_URL}
+    ports:
+      - "4001:4001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ── Next.js Web App
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+        NEXT_PUBLIC_REALTIME_URL: ${NEXT_PUBLIC_REALTIME_URL:-http://localhost:4001}
+        NEXT_PUBLIC_MINIO_URL: ${NEXT_PUBLIC_MINIO_URL:-http://localhost:9000}
+        NEXT_PUBLIC_APP_URL: ${APP_URL}
+    container_name: socionet_web
+    restart: unless-stopped
+    depends_on:
+      - api
+      - realtime
+    ports:
+      - "3000:3000"
+
+  # ── Nginx Reverse Proxy
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: socionet_nginx
+    restart: unless-stopped
+    depends_on:
+      - web
+      - api
+      - realtime
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+      - nginx_logs:/var/log/nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── Background job worker
+  worker:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+      target: production
+    container_name: socionet_worker
+    restart: unless-stopped
+    command: node dist/worker.js
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      WORKER_CONCURRENCY: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  nginx_logs:
+
+networks:
+  default:
+    name: socionet_network
+    driver: bridge
