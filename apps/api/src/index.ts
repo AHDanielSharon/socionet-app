@@ -45,7 +45,11 @@ const app = express();
 const httpServer = createServer(app);
 
 async function bootstrap() {
+  try {
   await initRedis();
+} catch (err) {
+  console.log("⚠️ Redis not available, continuing without it");
+}
   await initStorage();
   initEmail();
 
