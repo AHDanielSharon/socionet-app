@@ -2,26 +2,24 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "CommonJS",
-    "moduleResolution": "node",
     "outDir": "dist",
     "rootDir": "src",
 
     "baseUrl": "./src",
     "paths": {
-  "@config/*": ["config/*"],
-  "@lib/*": ["lib/*"],
-  "@routes/*": ["routes/*"],
-  "@utils/*": ["utils/*"],
-  "@middleware/*": ["middleware/*"],
-  "@services/*": ["services/*"],
-  "@validators/*": ["validators/*"],
-  "@jobs/*": ["jobs/*"]
-}
+      "@config/*": ["config/*"],
+      "@lib/*": ["lib/*"],
+      "@routes/*": ["routes/*"],
+      "@utils/*": ["utils/*"],
+      "@middleware/*": ["middleware/*"],
+      "@services/*": ["services/*"],
+      "@validators/*": ["validators/*"],
+      "@jobs/*": ["jobs/*"]
+    },
 
     "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "strict": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "strict": false
   },
   "include": ["src"]
 }

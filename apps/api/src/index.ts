@@ -8,38 +8,38 @@ import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import { createServer } from 'http';
 
-// ✅ FIXED IMPORTS (NO @)
-import { config } from '../config/index';
-import { db } from '../lib/db';
-import { initRedis } from '../lib/redis';
-import { initStorage } from '../lib/storage';
-import { initEmail } from '../lib/email';
-import { logger, httpLogStream } from '../utils/logger';
-import { errorHandler, notFoundHandler } from '../middleware/errorHandler';
-import { rateLimiter } from '../middleware/rateLimiter';
+// ✅ CORRECT PATHS (no ../)
+import { config } from './config/index';
+import { db } from './lib/db';
+import { initRedis } from './lib/redis';
+import { initStorage } from './lib/storage';
+import { initEmail } from './lib/email';
+import { logger, httpLogStream } from './utils/logger';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { rateLimiter } from './middleware/rateLimiter';
 
 // Routes
-import authRoutes from '../routes/auth';
-import userRoutes from '../routes/users';
-import postRoutes from '../routes/posts';
-import storyRoutes from '../routes/stories';
-import feedRoutes from '../routes/feed';
-import messageRoutes from '../routes/messages';
-import conversationRoutes from '../routes/conversations';
-import notificationRoutes from '../routes/notifications';
-import communityRoutes from '../routes/communities';
-import searchRoutes from '../routes/search';
-import mediaRoutes from '../routes/media';
-import exploreRoutes from '../routes/explore';
-import liveRoutes from '../routes/live';
-import callRoutes from '../routes/calls';
-import walletRoutes from '../routes/wallet';
-import aiRoutes from '../routes/ai';
-import relationshipRoutes from '../routes/relationships';
-import locationRoutes from '../routes/location';
-import creatorRoutes from '../routes/creator';
-import settingsRoutes from '../routes/settings';
-import reportRoutes from '../routes/reports';
+import authRoutes from './routes/auth';
+import userRoutes from './routes/users';
+import postRoutes from './routes/posts';
+import storyRoutes from './routes/stories';
+import feedRoutes from './routes/feed';
+import messageRoutes from './routes/messages';
+import conversationRoutes from './routes/conversations';
+import notificationRoutes from './routes/notifications';
+import communityRoutes from './routes/communities';
+import searchRoutes from './routes/search';
+import mediaRoutes from './routes/media';
+import exploreRoutes from './routes/explore';
+import liveRoutes from './routes/live';
+import callRoutes from './routes/calls';
+import walletRoutes from './routes/wallet';
+import aiRoutes from './routes/ai';
+import relationshipRoutes from './routes/relationships';
+import locationRoutes from './routes/location';
+import creatorRoutes from './routes/creator';
+import settingsRoutes from './routes/settings';
+import reportRoutes from './routes/reports';
 
 const app = express();
 const httpServer = createServer(app);
@@ -55,11 +55,7 @@ async function bootstrap() {
   }));
 
   app.use(cors({
-    origin: (origin, callback) => {
-      const allowed = [config.app.url, 'http://localhost:3000'];
-      if (!origin || allowed.includes(origin)) callback(null, true);
-      else callback(new Error('Not allowed by CORS'));
-    },
+    origin: true,
     credentials: true,
   }));
 
@@ -110,8 +106,8 @@ async function bootstrap() {
   app.use(notFoundHandler);
   app.use(errorHandler);
 
-  httpServer.listen(config.server.port || 10000, () => {
-    console.log(`🚀 Server running on port ${config.server.port}`);
+  httpServer.listen(process.env.PORT || 10000, () => {
+    console.log(`🚀 Server running`);
   });
 }
 
